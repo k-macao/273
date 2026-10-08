@@ -296,7 +296,7 @@ def wrap_with_latest_features(
 
 def run_report(raw_code: str, *, channel: str = "console",
                ai_provider: str | None = None, template: str = "analysis",
-               dry_run: bool = True, theme: str = "guizang",
+               dry_run: bool = True, theme: str = "dos",
                push_timeout: int = 30, no_chart: bool = False,
                risk: str = "mid", mode: str = "full",
                industry: str | None = None, hours: int = 48,
@@ -737,9 +737,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--industry", default="",
                    help="equity 栏目行业附录 slug（默认自动猜测）")
     p.add_argument("--risk", default="mid", choices=pp.RISKS, help="风险偏好（portfolio 模板）")
-    p.add_argument("--theme", default="guizang",
-                   choices=["guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
-                   help="PushPlus 视觉主题（默认 guizang：电子杂志×电子墨水竖版长页）")
+    p.add_argument("--theme", default="dos",
+                   choices=["dos", "guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
+                   help="PushPlus 视觉主题（默认 dos：DOS CRT 磷光绿复古终端）")
     p.add_argument("--push", action="store_true", help="真实推送（默认 dry-run 只打印不推送）")
     p.add_argument("--no-chart", action="store_true", dest="no_chart")
     p.add_argument("--ai-compress", default="", dest="ai_compress",

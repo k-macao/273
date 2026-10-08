@@ -4,7 +4,8 @@
 
 输出：
     examples/guizang_theme_preview.html  电子杂志 × 电子墨水竖版长页面
-    examples/theme_preview.html          guizang/game/klein/pixel/monitor 对比
+    examples/theme_preview.html          guizang/game/klein/pixel/monitor/dos 对比
+    examples/dos_theme_preview.html      DOS CRT 复古终端单独预览
     examples/game_theme_preview.html     game 单独预览（兼容旧入口）
     examples/server_monitor_preview.html 服务器大屏静态预览
 
@@ -18,6 +19,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pushplus_deepseek import themed_html  # noqa: E402
+
+DOS_SAMPLE_MD = """# 全球市场情报简报
+
+**全市场扫描 · 24 小时窗口**。汇总公开财经快讯，聚焦市场温度、板块主线与风险，不提供个股评级或目标价。
+
+## 快速状态
+
+| 监控项 | 当前状态 | 数据 |
+|---|---|---|
+| 接入来源 | 在线 | 12 源 / 12 源 |
+| 快讯样本 | 已采集 | 128 条 |
+| 市场情绪 | 中性偏暖 | 锚点 54% |
+
+## 市场主线
+
+- **科技与 AI**：关注需求与资本开支信号，等待更多来源交叉验证。
+- **利率与汇率**：宏观预期变化可能影响风险偏好。
+- **周期板块**：商品价格波动仍是短线变量。
+
+## 风险与数据缺口
+
+1. 公开快讯不等同于完整市场行情；来源不可用时不补造数据。
+2. 以上仅为市场与板块层面的信息汇总，不形成任何单只股票的投资意见。
+
+> C:\MARKET\MONITOR.BAT · SYSTEM READY
+"""
 
 SAMPLE_MD = """# 先看证据，再谈方向
 
@@ -77,7 +104,7 @@ body{{padding:18px 10px 42px}}
 
 THEME_LABELS = {
     "guizang": (
-        "[ THEME: guizang · 电子杂志 × 电子墨水 · 默认竖版长页 ]",
+        "[ THEME: guizang · 电子杂志 × 电子墨水 · 竖版长页 ]",
         "[ PREVIEW ] 暖纸底 · 墨黑 Hero · 衬线标题 · 等宽元信息 · 发丝线 · rowline · 手机连续阅读",
     ),
     "monitor": (
@@ -96,14 +123,20 @@ THEME_LABELS = {
         "[ THEME: pixel · 复古监控风 ]",
         "[ PREVIEW ] 暗色服务器大屏 · REC 摄像头元素 · UTC",
     ),
+    "dos": (
+        "[ THEME: dos · DOS CRT 复古终端 ]",
+        "[ PREVIEW ] 磷光绿字 · 琥珀光标 · 命令行状态栏 · CRT 扫描线",
+    ),
 }
 
 
 def _block(theme: str) -> str:
     label, foot = THEME_LABELS[theme]
+    sample = DOS_SAMPLE_MD if theme == "dos" else SAMPLE_MD
+    title = "章鱼 AI · 全球市场 · 早报" if theme == "dos" else "章鱼 AI · 阿里巴巴 · 机构级研究简报"
     return (
         f'<div class="preview-label">{label}</div>\n'
-        + themed_html("章鱼 AI · 阿里巴巴 · 机构级研究简报", SAMPLE_MD, theme)
+        + themed_html(title, sample, theme)
         + f'\n<div class="preview-foot">{foot}</div>'
     )
 
@@ -118,9 +151,13 @@ def main() -> int:
         _page("Guizang 主题预览 · 电子杂志 × 电子墨水竖版长页", _block("guizang")),
         encoding="utf-8",
     )
-    body = "\n".join(_block(t) for t in ("guizang", "monitor", "game", "klein", "pixel"))
+    (out_dir / "dos_theme_preview.html").write_text(
+        _page("DOS CRT 主题预览 · 全市场情报简报", _block("dos")),
+        encoding="utf-8",
+    )
+    body = "\n".join(_block(t) for t in ("dos", "guizang", "monitor", "game", "klein", "pixel"))
     (out_dir / "theme_preview.html").write_text(
-        _page("PushPlus 主题预览 · Guizang / Monitor / Game / Klein / Pixel", body),
+        _page("PushPlus 主题预览 · DOS / Guizang / Monitor / Game / Klein / Pixel", body),
         encoding="utf-8",
     )
     (out_dir / "game_theme_preview.html").write_text(
@@ -133,7 +170,7 @@ def main() -> int:
         export_static_files()
     except Exception as exc:  # 静态主题预览不应被大屏导出失败阻塞
         print(f"⚠️ 服务器大屏静态预览未更新：{exc}")
-    print("已生成 guizang_theme_preview.html / theme_preview.html / game_theme_preview.html")
+    print("已生成 guizang_theme_preview.html / dos_theme_preview.html / theme_preview.html / game_theme_preview.html")
     return 0
 
 

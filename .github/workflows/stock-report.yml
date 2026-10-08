@@ -1,52 +1,11 @@
 # ============================================================================
-# 【过渡文件 · 手动复制版】股票研报（港股 / A股 / 美股）
-# ----------------------------------------------------------------------------
-# 本文件位于「仓库根目录」，GitHub Actions 不会执行它 —— 它只是一个中转/过渡副本。
-# 当前过渡版已加入 guizang 主题，并把它设为默认视觉主题；合并 PR 后请手动复制。
+# 手动生成单标的研报（港股 / A股 / 美股）；不配置 schedule，不会定时发送个股页。
+# 日常 09:00 / 17:00 全市场自动推送由 .github/workflows/market-brief.yml 负责。
 #
-# 使用方法（复制到 main 分支）：
-#   1. 复制本文件全部内容；
-#   2. 在 main 分支上覆盖写入 .github/workflows/stock-report.yml
-#      （或另存为任意文件名，例如 .github/workflows/r.yml）；
-#   3. 提交后到 Actions 页面选择 "Manual Run - Stock Report (HK/A-share/US)"
-#      → Run workflow 手动触发。
+# 使用方法：Actions → Manual Run - Stock Report → Run workflow；
+# 默认 dry_run=true，仅预览。需要单独发送个股研报时，需主动将 dry_run 改为 false。
 #
-# 匹配脚本：stock_report.py（v1.2.0-us-2026-08-14）
-#   输入港股/A股/美股代码 → 实时行情（免 Key）→ 最新功能（🧭 新鲜度看板 + 📊 字符模拟图
-#   + 🛰 十七平台扫描）→ AI 研报 / 机构级九章投研 / Skills Hub → 多通道推送。
-#   【2026-08-14 新增】境外（美股）支持：NVDA / AAPL / aapl.us 等代码自动识别，
-#   行情经 us_quote.py 四源采集（腾讯美股主 → 东财美股备 → Yahoo 核验 → Stooq 延迟核验）,
-#   研报行情块附「🔁 境外行情四源交叉验证」（中位共识价 ±0.8%/2% 口径、离群源点名）。
-#   【2026-08-13 起】社媒热榜 7→10 源并含数据源检查验证数据库（详见 DATA_SOURCES.md）。
-#
-# 要点：
-#   - 默认 template=equity（机构级个股投研独立栏目）；也可选 analysis 等经典模板 /
-#     Skills Hub 模板，同样附带上述最新功能；
-#   - 行情数据源（腾讯财经 / 东方财富）免 Key，无需配置任何行情 Secret；
-#   - ai_provider=auto：配了 DEEPSEEK_API_KEY 走 DeepSeek，否则自动降级 rule
-#     规则模板（不耗 API、可离线演示）；
-#   - 需真实推送时按所选通道配置 Secret：
-#     PUSHPLUS_TOKEN / WECOM_KEY / SERVERCHAN_SENDKEY（AI 另需 DEEPSEEK_API_KEY 等）；
-#     缺少推送 Key 时脚本会完整生成正文并优雅跳过对应通道，不让 Actions 失败；
-#   - 本工作流不写图片回仓库，permissions.contents 仅需 read；
-#   - hours 控制量价舆情 / 十七平台扫描窗口（24 / 48 / 72 / 156）；
-#   - actions/cache 持久化 output/push_state.json，供新鲜度看板跨运行对比；
-#   - 加固：actions 固定 v4/v5 并 pin 到 commit SHA；不要加 cache: 'pip'
-#     （本仓库无 requirements.txt / pyproject.toml，会导致 Setup Python 失败）；
-#   【2026-08-21 修复】离线自检不再受 Secret 影响：
-#     旧版 --selftest 直接读环境变量，仓库配了 DEEPSEEK_API_KEY 时「AI 分节压缩」
-#     会真的联网执行，导致自检项「无 Key 时优雅跳过（正文完整）」必然失败
-#     （日志特征：✂️ [1/1] … 549 → 467 字 → ❌ 1 项失败 → exit code 1）。
-#     现在 stock_report.py 用 _NoAIKeys 在自检全程屏蔽 DEEPSEEK_API_KEY /
-#     OPENAI_API_KEY（结束后原样恢复），本文件的 Offline selftest 步骤又在
-#     step 级把两个 Key 置空做双保险。注意：Actions 跑的是「所选分支上的代码」，
-#     若仍看到该失败，请确认 Run workflow 时选的分支已包含此修复。
-#   - 若遇 "Service Unavailable / Failed to resolve action download info"，
-#     见 README「故障排查」章节（Marketplace CDN 瞬时 503，网页 Re-run 即可）。
-#
-# workflow_dispatch 输入官方上限 10 个（当前本文件已有 11 个：code / template / mode /
-# channel / ai_provider / theme / hours / risk / industry / dry_run / ai_compress，
-# 实测仍可正常触发）。再新增输入前请先删一个，避免触发 "too many inputs" 报错。
+# 行情源免 Key；AI 无 Key 会降级 rule。真实推送需要 PUSHPLUS_TOKEN 等通道 Secret。
 # ============================================================================
 name: Manual Run - Stock Report (HK/A-share/US)
 
@@ -119,9 +78,10 @@ on:
       theme:
         description: '视觉主题'
         required: true
-        default: 'guizang'
+        default: 'dos'
         type: choice
         options:
+          - dos
           - guizang
           - monitor
           - noc
@@ -154,9 +114,9 @@ on:
         default: ''
         type: string
       dry_run:
-        description: 'true=只生成内容打印到日志（不发微信）；false=真实推送'
+        description: 'true=只预览（默认）；false=真实推送单标的研报'
         required: true
-        default: 'false'
+        default: 'true'
         type: choice
         options:
           - 'false'

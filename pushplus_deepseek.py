@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-pushplus_deepseek.py — 港股数据 + DeepSeek 分析 → 多通道推送
+pushplus_deepseek.py — 多市场行情/快讯 + AI 分析 → 多通道推送
                           （PushPlus / 企业微信 / Server酱 / 控制台）
 
 功能模块
@@ -74,7 +74,7 @@ HK_TZ = timezone(timedelta(hours=8), "HKT")
 DEFAULT_TOPIC = "阿里巴巴(Alibaba) 每日简报"
 CST = timezone(timedelta(hours=8), "CST")
 
-VERSION = "2.19-us-2026-08-14"  # 脚本版本指纹：每次交付递增，日志首行可见  # 脚本版本指纹：每次交付递增，日志首行可见
+VERSION = "2.20-dos-market-2026-10-08"  # DOS 主题 + 全市场定时简报
 
 CHANNELS = ["pushplus", "wecom", "serverchan", "console", "all"]
 ALL_CHANNELS = ["pushplus", "wecom", "serverchan"]
@@ -879,9 +879,19 @@ def collect_feeds(hours: int, timeout: int) -> FeedPack:
     return pack
 
 
+def is_market_wide_topic(topic: str) -> bool:
+    """识别自动市场简报主题，避免把全市场扫描误写成个股投研。"""
+    normalized = re.sub(r"[\s·/_-]+", "", (topic or "")).lower()
+    return any(marker in normalized for marker in (
+        "全市场", "全球市场", "港股a股市场", "市场早报", "市场晚报",
+        "市场简报", "marketwide"))
+
+
 def feed_context(topic: str, pack: FeedPack) -> str:
+    scope = ("报告范围：全市场（不指定单一个股）" if is_market_wide_topic(topic)
+             else f"关注标的：{topic}")
     ctx = [f"【{pack.hours}h 全市场快讯数据：{pack.agg['n_sources']}/12 源可用，"
-           f"共 {pack.agg['n']} 条，已本地打标】关注标的：{topic}"]
+           f"共 {pack.agg['n']} 条，已本地打标】{scope}"]
     for spec in FEED_SPECS:
         items = pack.items.get(spec.name)
         if not items:
@@ -1188,21 +1198,39 @@ def build_messages(template: str, topic: str, context: str,
             "打分区间 [-1,1]；样本不足的象限必须明说而非编造。"
             + RULES_TAIL)
     elif template == "feedscan":
-        user = (
-            f"基于以下 48h 内全市场快讯数据（已本地预打标，含各源情绪指标），"
-            f"输出一份全市场情绪扫描报告，并评估对关注标的「{topic}」的传导。\n\n"
-            f"{context}\n\n严格按此格式输出：\n\n"
-            "## 全市场快讯情绪扫描\n\n"
-            "| 来源 | 样本 | 利好/利空/中性 | 情绪分 | 多头概率 |\n"
-            "|---|---|---|---|---|\n（逐源罗列，不可用源注明）\n\n"
-            "- **全市场情绪温度**：偏暖/偏冷一句话 + 综合多头概率%"
-            "（可参考本地锚点，偏离须给理由）\n"
-            "- **三大主线**：跨源归纳，每条标注支撑来源与成立概率%\n"
-            "- **板块映射**：利多板块/利空板块各 2~3 个\n"
-            f"- **对「{topic}」所在产业链的传导**：1~2 句 + 方向概率%\n"
-            "- **噪音提示**：2 条看似重要但可忽略的快讯\n\n"
-            "打分区间 [-1,1]；样本不足的源必须明说而非编造。"
-            + RULES_TAIL)
+        if is_market_wide_topic(topic):
+            user = (
+                "基于以下最近 24h 全市场快讯数据（已本地预打标，含各源情绪指标），"
+                "输出一份不针对单只股票的全市场市场情报简报。\n\n"
+                f"{context}\n\n严格按此格式输出：\n\n"
+                "## 全市场快讯情绪扫描\n\n"
+                "| 来源 | 样本 | 利好/利空/中性 | 情绪分 | 市场信号 |\n"
+                "|---|---|---|---|---|\n（逐源罗列，不可用源注明）\n\n"
+                "- **市场情绪温度**：偏暖/偏冷一句话 + 综合情绪锚点%\n"
+                "- **三大市场主线**：跨源归纳，每条标注支撑来源与可信度\n"
+                "- **板块映射**：受益/承压板块各 2~3 个；没有足够证据时标明未知\n"
+                "- **风险与观察**：2~3 条市场级风险或接下来需要验证的信号\n"
+                "- **数据缺口**：注明失效/无返回来源，不补造数据\n\n"
+                "重要约束：只做宏观、市场与板块层面的概览；禁止输出任何单只股票的研报、"
+                "评级、目标价、买卖点或个股投资建议。快讯即使提到公司，也只可作为新闻事实，"
+                "不得把正文写成个股页。不得臆造数据。"
+                + RULES_TAIL)
+        else:
+            user = (
+                f"基于以下 48h 内全市场快讯数据（已本地预打标，含各源情绪指标），"
+                f"输出一份全市场情绪扫描报告，并评估对关注标的「{topic}」的传导。\n\n"
+                f"{context}\n\n严格按此格式输出：\n\n"
+                "## 全市场快讯情绪扫描\n\n"
+                "| 来源 | 样本 | 利好/利空/中性 | 情绪分 | 多头概率 |\n"
+                "|---|---|---|---|---|\n（逐源罗列，不可用源注明）\n\n"
+                "- **全市场情绪温度**：偏暖/偏冷一句话 + 综合多头概率%"
+                "（可参考本地锚点，偏离须给理由）\n"
+                "- **三大主线**：跨源归纳，每条标注支撑来源与成立概率%\n"
+                "- **板块映射**：利多板块/利空板块各 2~3 个\n"
+                f"- **对「{topic}」所在产业链的传导**：1~2 句 + 方向概率%\n"
+                "- **噪音提示**：2 条看似重要但可忽略的快讯\n\n"
+                "打分区间 [-1,1]；样本不足的源必须明说而非编造。"
+                + RULES_TAIL)
     elif template == "newsnow":
         user = (
             f"基于以下 NewsNow 热榜聚合数据（10源：知乎热榜/抖音热搜/微博实时热搜/虎扑热搜/AI hot/联合早报/香港01/今日头条热榜/百度实时热点/B站热榜），"
@@ -1473,7 +1501,7 @@ def gen_by_rule(topic: str, template: str,
         f"**{topic} · {TEMPLATE_TITLES.get(template, '简报')}**（rule 演示模板）", "",
         f"- 模板：{template}（正式内容需 ai_provider=deepseek）",
         f"- 运行时间：{now}（北京时间）",
-        "- 工作流：Manual Run - Alibaba PushPlus+DeepSeek", "",
+        "- 工作流：GitHub Actions 手动运行（推送目标由工作流配置）", "",
         "> 在 Actions 运行页选择 ai_provider=deepseek 即可获得完整 AI 分析。",
         "> ⚠️ 非投资建议，仅供参考。"])
 
@@ -1715,6 +1743,7 @@ def print_secret_report(channel: str, provider: str) -> bool:
 #            HP血条/SCORE/LEVEL 游戏元素/金币高亮/涨跌突出
 # klein 主题：游戏复古像素风 - 米黄纸底/黑细框/像素图标/涨跌突出
 # pixel 主题：复古监控风 - 暗色服务器大屏/细线框/等宽细字/涨跌突出/REC摄像头元素
+# dos 主题：DOS CRT 终端 - 黑底磷光绿/琥珀光标/命令行状态栏/扫描线，当前推送默认
 
 GUIZANG = {
     # ---- 电子杂志 × 电子墨水：墨水经典（Monocle 默认）竖版长页面 ----
@@ -1803,6 +1832,37 @@ PIXEL = {
     "shadow": "rgba(0,0,0,0.55)",       # 硬偏移阴影
 }
 
+DOS = {
+    # ---- DOS CRT 终端：黑底磷光绿 + 琥珀提示 + 扫描线 ----
+    "bg": "#020603",            # CRT 屏幕边框
+    "card_bg": "#06100A",       # 终端面板底色
+    "hbg": "#001A08",           # DOS 状态栏深绿
+    "hfg": "#67FF8A",           # 磷光绿标题
+    "fg": "#A8F2B3",            # 正文柔和绿
+    "muted": "#4B8D59",         # 辅助终端绿
+    "border": "#236B36",        # 像素绿边框
+    "accent": "#FFC857",        # 琥珀色光标/提示
+    "accent_fg": "#151000",
+    "up": "#63FF78",
+    "down": "#FF6969",
+    "up_bg": "#08200F",
+    "down_bg": "#260B0B",
+    "code_bg": "#010402",
+    "code_fg": "#75FF91",
+    "size": "12px",
+    "size_title": "13px",
+    "size_h1": "14px",
+    "size_h2": "13px",
+    "size_h3": "12px",
+    "line": "1.5",
+    "font": "'Lucida Console','Courier New',monospace",
+    "font_mono": "'Lucida Console','Courier New',monospace",
+    "scan": "rgba(0,0,0,0.34)",
+    "grid": "rgba(103,255,138,0.04)",
+    "shadow": "rgba(0,0,0,0.85)",
+    "table_free": True,
+}
+
 GAME = {
     # ---- 8-bit 像素游戏风（兼容保留）：深夜蓝游戏屏 + 金色粗框 + 硬黑像素阴影 ----
     #      标题栏=游戏菜单金条 / 状态栏=HP血条+LV等级 / 底部=SCORE+PRESS START
@@ -1869,6 +1929,7 @@ THEMES = {
     "game": GAME,
     "klein": KLEIN,
     "pixel": PIXEL,
+    "dos": DOS,
     "monitor": MONITOR,
     "noc": MONITOR,
 }
@@ -1892,6 +1953,7 @@ FLUORESCENT_TEXT_COLORS = {
     MONITOR["hfg"], MONITOR["accent"], MONITOR["up"],   # 荧光青/荧光绿
     GAME["accent"], GAME["up"], GAME["hp_full"], GAME["border"],  # 金币黄/磷光绿/金框
     PIXEL["hfg"], PIXEL["accent"], PIXEL["up"],          # 磷光绿/琥珀黄
+    DOS["hfg"], DOS["accent"], DOS["up"],                # DOS 磷光绿/琥珀光标
     GUIZANG["accent"],                                   # 荧光黄绿标题
     KLEIN["accent"],                                     # 像素黄
 }
@@ -2317,7 +2379,7 @@ def _render_table(rows: list[str], theme_name: str = "game") -> str:
     th_cells = []
     for c in head:
         icon = ""
-        if theme_name in ("pixel", "klein", "game"):
+        if theme_name in ("pixel", "dos", "klein", "game"):
             icon = f'<span style="display:inline-block;width:6px;height:6px;background:{theme["accent"]};margin-right:4px;vertical-align:middle;"></span>'
         th_cells.append(
             f'<th style="{th_style_base}">{icon}{_inline_md(c, theme_name)}</th>'
@@ -2344,7 +2406,7 @@ def _render_table(rows: list[str], theme_name: str = "game") -> str:
             )
             prefix = ""
 
-            if theme_name in ("pixel", "klein", "game"):
+            if theme_name in ("pixel", "dos", "klein", "game"):
                 if is_up:
                     # 涨：绿字 + 淡绿底 + ▲ 像素图标 最突出
                     td_base = (
@@ -2490,7 +2552,7 @@ def md_to_html(md: str, theme_name: str = "game") -> str:
                     f'<hr style="border:none;border-top:2px solid {theme["border"]};'
                     f'margin:8px 0;">'
                 )
-            elif theme_name in ("pixel", "klein"):
+            elif theme_name in ("pixel", "dos", "klein"):
                 html.append(
                     f'<hr style="border:none;border-top:1px dashed {theme["border"]};margin:8px 0;">'
                 )
@@ -2524,7 +2586,7 @@ def md_to_html(md: str, theme_name: str = "game") -> str:
                     f'line-height:1.28;'
                     f'letter-spacing:-.02em;overflow-wrap:anywhere;">'
                     f'{_inline_md(txt, theme_name, link_color=theme["accent"])}</div></div>')
-            elif theme_name in ("pixel", "klein", "game"):
+            elif theme_name in ("pixel", "dos", "klein", "game"):
                 if theme_name == "game":
                     icon_map = {1: "◆", 2: "►", 3: "·"}
                     lb = "3px"  # 游戏风粗左线
@@ -2572,7 +2634,7 @@ def md_to_html(md: str, theme_name: str = "game") -> str:
                     + f'</div><div style="margin-top:11px;font-family:{theme["font_mono"]};'
                       f'font-size:9px;letter-spacing:.18em;color:{theme["muted"]};">'
                       f'EDITORIAL NOTE</div></div>')
-            elif theme_name in ("pixel", "klein", "game"):
+            elif theme_name in ("pixel", "dos", "klein", "game"):
                 # game 游戏风：金色 3px 左线（任务/提示框）；pixel 细线 1px
                 lb = "3px" if theme_name in ("klein", "game") else "1px"
                 lb_color = theme["accent"] if theme_name == "game" else theme["border"]
@@ -2613,9 +2675,9 @@ def md_to_html(md: str, theme_name: str = "game") -> str:
                     f'{theme["hairline"]};color:{theme["fg"]};font-family:{theme["font"]};'
                     f'font-size:{theme["size"]};line-height:{theme["line"]};list-style:none;">'
                     f'{lis}</ul>')
-            elif theme_name in ("pixel", "klein", "game"):
+            elif theme_name in ("pixel", "dos", "klein", "game"):
                 # game/pixel 用金币/琥珀方块；klein 游戏复古用黑方块
-                mk = theme["accent"] if theme_name in ("pixel", "game") else theme["border"]
+                mk = theme["accent"] if theme_name in ("pixel", "dos", "game") else theme["border"]
                 lis = "".join(
                     f'<li style="margin:2px 0;list-style:none;position:relative;padding-left:12px;">'
                     f'<span style="position:absolute;left:0;top:2px;width:6px;height:6px;'
@@ -2853,6 +2915,42 @@ def themed_html(title: str, content_md: str, theme_name: str = "game",
             f'<span style="float:right;">PRESS START <span style="color:{theme["accent"]};background:{FLU_BLACK_BG};">▮</span></span>'
             f'</div>'
             f'</div></div>'
+        )
+    if theme_name == "dos":
+        # DOS CRT 终端：仿命令行窗口、磷光绿文字、琥珀光标与扫描线。
+        stamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
+        return (
+            f'<div style="background:{theme["bg"]};padding:12px 8px;'
+            f'font-size:{theme["size"]};line-height:{theme["line"]};'
+            f'color:{theme["fg"]};font-family:{theme["font"]};'
+            f'background-image:repeating-linear-gradient(0deg,{theme["scan"]} 0 1px,'
+            f'rgba(0,0,0,0) 1px 3px);">'
+            f'<div style="background:{theme["card_bg"]};'
+            f'background-image:repeating-linear-gradient(0deg,{theme["grid"]} 0 1px,'
+            f'rgba(0,0,0,0) 1px 24px);'
+            f'border:1px solid {theme["border"]};'
+            f'box-shadow:2px 2px 0 {theme["shadow"]};padding:0;">'
+            f'<div style="background:{theme["hbg"]};color:{theme["hfg"]};'
+            f'font-size:{theme["size_title"]};font-weight:bold;'
+            f'padding:6px 8px;border-bottom:1px solid {theme["border"]};'
+            f'font-family:{theme["font"]};letter-spacing:.5px;">'
+            f'<span style="color:{theme["accent"]};background:{FLU_BLACK_BG};padding:0 3px;">C:\&gt;</span> '
+            f'DOS MARKET MONITOR'
+            f'<span style="float:right;color:{theme["up"]};background:{FLU_BLACK_BG};'
+            f'padding:0 3px;font-size:9px;">● SYSTEM READY</span></div>'
+            f'<div style="border-bottom:1px dashed {theme["border"]};'
+            f'padding:4px 8px;color:{theme["muted"]};font-size:9px;'
+            f'letter-spacing:.3px;font-family:{theme["font"]};">'
+            f'C:\MARKET\MONITOR.BAT&nbsp;&nbsp; | &nbsp;&nbsp;{stamp} BJT&nbsp;&nbsp; | &nbsp;&nbsp;FEED: ONLINE'
+            f'</div>'
+            f'<div style="padding:8px;">{body}</div>'
+            f'<div style="border-top:1px dashed {theme["border"]};'
+            f'margin:4px 8px 6px;padding:5px 0 2px;color:{theme["muted"]};'
+            f'font-size:9px;font-family:{theme["font"]};">'
+            f'<span style="color:{theme["accent"]};background:{FLU_BLACK_BG};padding:0 3px;">C:\&gt;</span> '
+            f'END OF REPORT&nbsp;&nbsp; <span style="color:{theme["hfg"]};">█</span>'
+            f'<span style="float:right;">OCTOPUS AI / DOS-CRT</span>'
+            f'</div></div></div>'
         )
     if theme_name == "pixel":
         # 复古监控风：暗色服务器大屏 + 细线框 + 等宽细字 + 摄像头 REC 元素
@@ -3409,7 +3507,7 @@ def split_md_for_html(title: str, md: str, theme_name: str,
 
 
 def push_pushplus(title: str, content: str, timeout: int,
-                  theme: str = "default") -> str:
+                  theme: str = "dos") -> str:
     token = env("PUSHPLUS_TOKEN")
     if not token:
         raise PushError("缺少 Secret：PUSHPLUS_TOKEN")
@@ -3418,7 +3516,7 @@ def push_pushplus(title: str, content: str, timeout: int,
     notes: list[str] = [note] if note else []
     # 待发送队列：(标题, 内容, template)
     sends: list[tuple[str, str, str]] = []
-    # 主题：guizang / game / klein / pixel / monitor / noc 均为 html 模板，其余走 markdown
+    # 主题：dos / guizang / game / klein / pixel / monitor / noc 均为 HTML 模板，其余走 markdown
     if theme in THEMES:
         html = themed_html(title, content, theme_name=theme)
         html_bytes = _utf8_len(html)
@@ -3967,6 +4065,16 @@ def selftest() -> int:
     md_rule = render_feed_rule("阿里巴巴", fp)
     check("feedscan:rule渲染含缺口行", "⚠️" in md_rule and "情绪温度" in md_rule)
     check("feedscan:附录含来源明细", "金十数据（1/10）" in render_feed_appendix(fp))
+    market_topic = "全球市场早报"
+    market_ctx = feed_context(market_topic, fp)
+    market_prompt = build_messages("feedscan", market_topic, market_ctx)[1]["content"]
+    check("feedscan:识别全市场主题而非个股主题",
+          is_market_wide_topic(market_topic) and "全市场（不指定单一个股）" in market_ctx
+          and "关注标的" not in market_ctx)
+    check("feedscan:全市场 AI 提示明确禁止个股页",
+          "不得把正文写成个股页" in market_prompt
+          and "所在产业链" not in market_prompt
+          and "市场级风险" in market_prompt)
 
     log("③d 审计修复回归")
     check("查询词清洗:默认主题", _clean_query_topic(
@@ -4136,7 +4244,23 @@ def selftest() -> int:
     check("pixel 摄像头元素(●REC+CAM-01+UTC戳)", "● REC" in pfull and "CAM-01" in pfull and "UTC" in pfull)
     check("pixel CRT扫描线+面板网格", PIXEL["scan"] in pfull and PIXEL["grid"] in pfull)
 
-    log("③f-3 guizang 主题渲染（电子杂志×电子墨水·竖版长页面）")
+    log("③f-3 DOS CRT 终端主题（磷光绿 + 命令行状态栏 + 扫描线）")
+    dos_md = ("## 全市场状态\n\n| 指标 | 数值 |\n|---|---|\n"
+              "| 情绪样本 | 24 |\n| 利好/利空 | 12/5 |\n\n"
+              "- **市场主线**：科技板块回暖\n> 数据源：公开快讯")
+    dos_body = md_to_html(dos_md, "dos")
+    dos_full = themed_html("全球市场早报", dos_md, "dos")
+    check("DOS 主题已注册且市场宽表转终端卡片",
+          THEMES.get("dos") is DOS and "<table" not in dos_body
+          and DOS["card_bg"] in dos_body)
+    check("DOS 命令提示符 / 磷光绿 / 北京时间状态栏",
+          "DOS MARKET MONITOR" in dos_full and "C:\\MARKET\\MONITOR.BAT" in dos_full
+          and "BJT" in dos_full and DOS["hfg"] in dos_full)
+    check("DOS CRT 扫描线 + 终端等宽字体 + 光标",
+          DOS["scan"] in dos_full and "Lucida Console" in dos_full
+          and "█" in dos_full and "END OF REPORT" in dos_full)
+
+    log("③f-4 guizang 主题渲染（电子杂志×电子墨水·竖版长页面）")
     gzm = ("# 市场正在重估什么\n\n**核心判断**：先看证据，再谈方向。\n\n"
            "## 信号矩阵\n\n| 因子 | 方向 | 多头概率 | 依据 |\n|---|---|---|---|\n"
            "| 基本面 | 偏多 | 65% | 云业务增长提速 |\n"
@@ -4205,7 +4329,7 @@ def selftest() -> int:
         src = open(__file__, encoding="utf-8").read()
         theme_zone = src.split("模块④b")[1].split("模块⑤")[0]
         # 移除所有主题常量定义（避免颜色被误判为硬编码）
-        theme_zone = re.sub(r"(GUIZANG|GAME|KLEIN|PIXEL|MONITOR|THEMES)\s*=\s*\{.*?\n\}", "", theme_zone, flags=re.S)
+        theme_zone = re.sub(r"(GUIZANG|GAME|KLEIN|PIXEL|DOS|MONITOR|THEMES)\s*=\s*\{.*?\n\}", "", theme_zone, flags=re.S)
         # 注释行不参与扫描（文档里允许出现色值说明）
         theme_zone = "\n".join(l for l in theme_zone.splitlines()
                                if not l.lstrip().startswith("#"))
@@ -4531,7 +4655,7 @@ def selftest() -> int:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="港股数据+ DeepSeek 分析 → 多通道推送",
+        description="多市场行情/快讯 + DeepSeek 分析 → 多通道推送",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dry-run", action="store_true", help="只生成不推送")
     p.add_argument("--check-only", action="store_true", help="只检查 Secrets")
@@ -4548,11 +4672,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="港股代码（如 09988），接入三源核验行情（或环境变量 HK_CODE）")
     p.add_argument("--risk", default="mid", choices=RISKS,
                    help="portfolio 模板的风险偏好档位")
-    p.add_argument("--theme", default="", choices=["", "default", "guizang", "game", "klein", "pixel", "monitor", "noc"],
-                   help="pushplus 通道主题（默认 guizang=电子杂志×电子墨水竖版长页：暖纸+"
-                        "衬线标题+等宽元信息+发丝线）；game=8-bit像素游戏；"
-                        "klein=米黄纸底黑细框；pixel=暗色监控大屏；monitor/noc=服务器大屏"
-                        "监视风格（零表格，文字+横排卡片流）（或环境变量 THEME）")
+    p.add_argument("--theme", default="", choices=["", "default", "guizang", "game", "klein", "pixel", "dos", "monitor", "noc"],
+                   help="pushplus 通道主题（默认 dos=DOS CRT复古终端：磷光绿+扫描线+等宽字体；"
+                        "guizang=电子杂志竖版长页；game=8-bit像素游戏；klein=米黄纸底；"
+                        "pixel=暗色监控大屏；monitor/noc=服务器大屏）（或环境变量 THEME）")
     p.add_argument("--hours", type=int, default=48,
                    help="analysis/sentiment/feedscan/十七平台扫描的数据窗口小时数"
                         "（默认 48，支持 24/48/72/156）")
@@ -4584,11 +4707,11 @@ def main(argv: list[str]) -> int:
     user_context = args.context or env("CONTEXT")
     hk_code_raw = args.hk_code or env("HK_CODE")
     risk = args.risk or env("RISK") or "mid"
-    theme = args.theme or env("THEME") or "guizang"
+    theme = args.theme or env("THEME") or "dos"
     targets = channel_targets(channel)
 
     log("=" * 60)
-    log(f"Manual Run - Alibaba PushPlus+DeepSeek  v{VERSION}")
+    log(f"Octopus AI PushPlus Market Intelligence  v{VERSION}")
     log(f"  模板: {template}({TEMPLATE_TITLES[template]})  通道: {channel}"
         f"  AI: {provider}  dry_run: {args.dry_run}  主题: {theme}")
     log(f"  主题: {topic}"

@@ -896,7 +896,7 @@ def generate_column(
     ai_provider: str | None = None,
     channel: str = "console",
     dry_run: bool = True,
-    theme: str = "guizang",      # 默认电子杂志 × 电子墨水竖版长页面
+    theme: str = "dos",          # 默认 DOS CRT 磷光绿复古终端
     industry: str | None = None,
     timeout: int = 90,
     run_check: bool = True,
@@ -1233,9 +1233,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--industry", default="", help="行业附录 slug（默认自动猜测）")
     p.add_argument("--ai-provider", default="auto", dest="ai_provider")
     p.add_argument("--channel", default="console")
-    p.add_argument("--theme", default="guizang",
-                   choices=["guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
-                   help="PushPlus 视觉主题（默认 guizang：电子杂志×电子墨水竖版长页）")
+    p.add_argument("--theme", default="dos",
+                   choices=["dos", "guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
+                   help="PushPlus 视觉主题（默认 dos：DOS CRT 磷光绿复古终端）")
     p.add_argument("--push", action="store_true")
     p.add_argument("--timeout", type=int, default=90)
     p.add_argument("--hours", type=int, default=48)

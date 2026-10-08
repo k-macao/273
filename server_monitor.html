@@ -1263,7 +1263,8 @@
                 <option value="earnings">财报前瞻</option>
             </select>
             <select id="report-theme" class="report-select" title="推送风格（PushPlus HTML 主题，微信详情页可见）">
-                <option value="guizang" selected>✦ 风格 GUIZANG 电子杂志长页</option>
+                <option value="dos" selected>🖥 风格 DOS CRT 复古终端</option>
+                <option value="guizang">✦ 风格 GUIZANG 电子杂志长页</option>
                 <option value="monitor">🖥 风格 MONITOR 服务器大屏</option>
                 <option value="game">🎮 风格 GAME 8-bit 像素游戏</option>
                 <option value="noc">🛰 风格 NOC 零表格监视</option>
@@ -2055,7 +2056,7 @@
             const btn = document.getElementById('report-btn');
             const channel = (document.getElementById('report-channel') || {}).value || 'console';
             const template = (document.getElementById('report-template') || {}).value || 'analysis';
-            const theme = (document.getElementById('report-theme') || {}).value || 'guizang';
+            const theme = (document.getElementById('report-theme') || {}).value || 'dos';
             if (!code) {
                 if (input) { input.style.borderColor = 'var(--red)'; input.focus(); }
                 appendLog('REPORT.INPUT', 'WARN', '请输入股票代码');
@@ -2162,7 +2163,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         code: code, mode: mode, channel: channel,
-                        dry_run: channel === 'console', theme: 'guizang'
+                        dry_run: channel === 'console', theme: 'dos'
                     })
                 });
                 const r = await resp.json();
@@ -2277,7 +2278,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         code: code, skill: skill, channel: channel,
-                        dry_run: channel === 'console', theme: 'guizang'
+                        dry_run: channel === 'console', theme: 'dos'
                     })
                 });
                 const r = await resp.json();

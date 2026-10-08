@@ -1,42 +1,11 @@
 # ============================================================================
-# 【过渡文件 · 手动复制版】股票研报（港股 / A股 / 美股）
-# ----------------------------------------------------------------------------
-# 本文件位于「仓库根目录」，GitHub Actions 不会执行它 —— 它只是一个中转/过渡副本。
-# 当前过渡版已加入 guizang 主题，并把它设为默认视觉主题；合并 PR 后请手动复制。
+# 根目录兼容副本（GitHub Actions 不会执行）。
+# 活跃手动工作流位于 .github/workflows/stock-report.yml；每日全市场定时推送
+# 单独位于 .github/workflows/market-brief.yml。请勿用本文件覆盖活跃工作流，
+# 否则会丢失手动预览安全默认值与定时简报配置。
 #
-# 使用方法（复制到 main 分支）：
-#   1. 复制本文件全部内容；
-#   2. 在 main 分支上覆盖写入 .github/workflows/stock-report.yml
-#      （或另存为任意文件名，例如 .github/workflows/r.yml）；
-#   3. 提交后到 Actions 页面选择 "Manual Run - Stock Report (HK/A-share/US)"
-#      → Run workflow 手动触发。
-#
-# 匹配脚本：stock_report.py（v1.2.0-us-2026-08-14）
-#   输入港股/A股/美股代码 → 实时行情（免 Key）→ 最新功能（🧭 新鲜度看板 + 📊 字符模拟图
-#   + 🛰 十七平台扫描）→ AI 研报 / 机构级九章投研 / Skills Hub → 多通道推送。
-#   【2026-08-14 新增】境外（美股）支持：NVDA / AAPL / aapl.us 等代码自动识别，
-#   行情经 us_quote.py 四源采集（腾讯美股主 → 东财美股备 → Yahoo 核验 → Stooq 延迟核验）,
-#   研报行情块附「🔁 境外行情四源交叉验证」（中位共识价 ±0.8%/2% 口径、离群源点名）。
-#   【2026-08-13 起】社媒热榜 7→10 源并含数据源检查验证数据库（详见 DATA_SOURCES.md）。
-#
-# 要点：
-#   - 默认 template=equity（机构级个股投研独立栏目）；也可选 analysis 等经典模板 /
-#     Skills Hub 模板，同样附带上述最新功能；
-#   - 行情数据源（腾讯财经 / 东方财富）免 Key，无需配置任何行情 Secret；
-#   - ai_provider=auto：配了 DEEPSEEK_API_KEY 走 DeepSeek，否则自动降级 rule
-#     规则模板（不耗 API、可离线演示）；
-#   - 需真实推送时按所选通道配置 Secret：
-#     PUSHPLUS_TOKEN / WECOM_KEY / SERVERCHAN_SENDKEY（AI 另需 DEEPSEEK_API_KEY 等）；
-#     缺少推送 Key 时脚本会完整生成正文并优雅跳过对应通道，不让 Actions 失败；
-#   - 本工作流不写图片回仓库，permissions.contents 仅需 read；
-#   - hours 控制量价舆情 / 十七平台扫描窗口（24 / 48 / 72 / 156）；
-#   - actions/cache 持久化 output/push_state.json，供新鲜度看板跨运行对比；
-#   - 加固：actions 固定 v4/v5 并 pin 到 commit SHA；不要加 cache: 'pip'
-#     （本仓库无 requirements.txt / pyproject.toml，会导致 Setup Python 失败）；
-#   - 若遇 "Service Unavailable / Failed to resolve action download info"，
-#     见 README「故障排查」章节（Marketplace CDN 瞬时 503，网页 Re-run 即可）。
-#
-# workflow_dispatch 输入上限为 10 个，本文件正好用满 10 个，新增输入前请先删一个。
+# 本副本只保留单标的研报的 workflow_dispatch 配置，默认 dry_run=true，
+# 需要真实发送个股研报时必须手动明确切换为 false。
 # ============================================================================
 name: Manual Run - Stock Report (HK/A-share/US)
 
@@ -109,9 +78,10 @@ on:
       theme:
         description: '视觉主题'
         required: true
-        default: 'guizang'
+        default: 'dos'
         type: choice
         options:
+          - dos
           - guizang
           - monitor
           - noc
@@ -144,9 +114,9 @@ on:
         default: ''
         type: string
       dry_run:
-        description: 'true=只生成内容打印到日志（不发微信）；false=真实推送'
+        description: 'true=只预览（默认）；false=真实推送单标的研报'
         required: true
-        default: 'false'
+        default: 'true'
         type: choice
         options:
           - 'false'

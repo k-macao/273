@@ -444,7 +444,7 @@ def run_skill(
     ai_provider: str | None = None,
     channel: str = "console",
     dry_run: bool = True,
-    theme: str = "guizang",
+    theme: str = "dos",
     timeout: int = 90,
 ) -> dict:
     """行情 → skill prompt / rule 骨架 → 可选推送。"""
@@ -628,9 +628,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="skill 模板名或 id（如 morning_note / initiate）")
     p.add_argument("--ai-provider", default="auto", dest="ai_provider")
     p.add_argument("--channel", default="console")
-    p.add_argument("--theme", default="guizang",
-                   choices=["guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
-                   help="PushPlus 视觉主题（默认 guizang 竖版电子杂志）")
+    p.add_argument("--theme", default="dos",
+                   choices=["dos", "guizang", "game", "klein", "pixel", "monitor", "noc", "default"],
+                   help="PushPlus 视觉主题（默认 dos：DOS CRT 磷光绿复古终端）")
     p.add_argument("--push", action="store_true")
     p.add_argument("--timeout", type=int, default=90)
     p.add_argument("--json", action="store_true")

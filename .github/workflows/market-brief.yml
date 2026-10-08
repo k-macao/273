@@ -1,0 +1,106 @@
+# 每日全市场快讯简报：仅推送市场/板块扫描，不调用个股研报或个股行情页。
+# GitHub Actions cron 使用 UTC；按用户本地时区每天 09:00 和 17:00 推送。
+name: Scheduled Market Brief (DOS Monitor)
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # 每日 UTC 09:00（早报）
+    - cron: '0 17 * * *' # 每日 UTC 17:00（晚报）
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '手动试跑默认仅预览；设为 false 才真实推送。定时任务始终真实推送。'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-brief-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  market-brief:
+    name: Generate & Push Market-wide Brief
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      PUSH_STATE_PATH: output/market_push_state.json
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Restore market push state
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: output/market_push_state.json
+          key: market-push-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            market-push-state-
+
+      - name: Resolve bulletin session
+        id: session
+        shell: bash
+        env:
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+        run: |
+          case "$SCHEDULE_CRON" in
+            '0 9 * * *') echo 'topic=全球市场早报' >> "$GITHUB_OUTPUT" ;;
+            '0 17 * * *') echo 'topic=全球市场晚报' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'topic=全球市场简报' >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Generate and push market-only brief
+        shell: bash
+        env:
+          REPORT_TOPIC: ${{ steps.session.outputs.topic }}
+          RUN_EVENT: ${{ github.event_name }}
+          MANUAL_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [[ "$RUN_EVENT" == "schedule" || "$MANUAL_DRY_RUN" == "false" ]]; then
+            if [[ -z "$PUSHPLUS_TOKEN" ]]; then
+              echo '::error::PUSHPLUS_TOKEN is required for automatic market pushes.'
+              exit 1
+            fi
+            python pushplus_deepseek.py \
+              --template feedscan \
+              --topic "$REPORT_TOPIC" \
+              --channel pushplus \
+              --ai-provider deepseek \
+              --theme dos \
+              --hours 24 \
+              --no-chart \
+              --no-ai-compress \
+              --timeout 45
+          else
+            python pushplus_deepseek.py \
+              --template feedscan \
+              --topic "$REPORT_TOPIC" \
+              --channel pushplus \
+              --ai-provider deepseek \
+              --theme dos \
+              --hours 24 \
+              --no-chart \
+              --no-ai-compress \
+              --timeout 45 \
+              --dry-run
+          fi
+
+      - name: Save market push state
+        if: ${{ success() && hashFiles('output/market_push_state.json') != '' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: output/market_push_state.json
+          key: market-push-state-${{ github.run_id }}-${{ github.run_attempt }}
